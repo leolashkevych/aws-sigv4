@@ -4,7 +4,6 @@ import burp.error.SigCredentialProviderException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import com.google.gson.*;
-import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -31,7 +30,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -53,30 +51,15 @@ import java.util.stream.Stream;
 public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtensionStateListener, IMessageEditorTabFactory, IContextMenuFactory
 {
     // make sure to update version in build.gradle as well
-    private static final String EXTENSION_VERSION = "0.2.3";
+    private static final String EXTENSION_VERSION = "0.2.5";
 
     private static final String BURP_SETTINGS_KEY = "JsonSettings";
     private static final String SETTING_VERSION = "ExtensionVersion";
-    private static final String SETTING_PROFILES = "SerializedProfileList";
-    private static final String SETTING_PERSISTENT_PROFILES = "PersistentProfiles";
-    private static final String SETTING_EXTENSION_ENABLED = "ExtensionEnabled";
-    private static final String SETTING_DEFAULT_PROFILE_NAME = "DefaultProfileName";
     private static final String SETTING_LOG_LEVEL = "LogLevel";
-    private static final String SETTING_CUSTOM_HEADERS = "CustomSignedHeaders";
-    private static final String SETTING_CUSTOM_HEADERS_OVERWRITE = "CustomSignedHeadersOverwrite";
-    private static final String SETTING_ADDITIONAL_SIGNED_HEADER_NAMES = "AdditionalSignedHeaderNames";
-    private static final String SETTING_IN_SCOPE_ONLY = "InScopeOnly";
-    private static final String SETTING_PRESERVE_HEADER_ORDER = "PreserveHeaderOrder";
-    private static final String SETTING_PRESIGNED_URL_LIFETIME = "PresignedUrlLifetimeInSeconds";
-    private static final String SETTING_CONTENT_MD5_BEHAVIOR = "ContentMD5HeaderBehavior";
+    private static final String SETTING_CONFIG_VERSION = "SettingsVersion";
 
     public static final String EXTENSION_NAME = "SigV4"; // Name in extender menu
     public static final String DISPLAY_NAME = "SigV4"; // name for tabs, menu, and other UI components
-
-    // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
-    private static final long PRESIGNED_URL_LIFETIME_MIN_SECONDS = 1;
-    private static final long PRESIGNED_URL_LIFETIME_DEFAULT_SECONDS = 900; // 15 minutes
-    private static final long PRESIGNED_URL_LIFETIME_MAX_SECONDS = 604800; // 7 days
 
     private static final String NO_DEFAULT_PROFILE = "        "; // ensure combobox is visible. SigProfile.profileNamePattern doesn't allow this name
 
@@ -97,14 +80,6 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
     private HashMap<String, SigProfile> profileNameMap; // map name to profile
     protected LogWriter logger = LogWriter.getLogger();
 
-    // Persistent settings
-    private boolean preserveHeaderOrder = true; // preserve order of headers after signing
-    private long presignedUrlLifetimeSeconds = PRESIGNED_URL_LIFETIME_DEFAULT_SECONDS;
-    private static final String CONTENT_MD5_UPDATE = "update"; // recompute a valid md5
-    private static final String CONTENT_MD5_REMOVE = "remove"; // remove the header
-    private static final String CONTENT_MD5_IGNORE = "ignore"; // do nothing
-    private String contentMd5HeaderBehavior = CONTENT_MD5_IGNORE;
-
     private JLabel statusLabel;
     private JCheckBox signingEnabledCheckBox;
     private JComboBox<String> defaultProfileComboBox;
@@ -112,6 +87,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
     private JCheckBox persistProfilesCheckBox;
     private JCheckBox inScopeOnlyCheckBox;
     private JTextField additionalSignedHeadersField;
+    private AdvancedSettingsDialog advancedSettingsDialog;
 
     private JTable profileTable;
     private JTable customHeadersTable;
@@ -161,75 +137,14 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
         otherSettingsPanel.add(new JLabel("Default Profile"));
         otherSettingsPanel.add(defaultProfileComboBox);
 
-
-        // import/export settings json with dialogs
-        JButton settingsImportButton = new JButton("Import");
-        settingsImportButton.addActionListener(actionEvent -> {
-            JDialog dialog = new JDialog((Frame)null, "Import Settings Json", true);
-            JPanel mainPanel = new JPanel(new BorderLayout());
-            JTextArea textPanel = new JTextArea();
-            JScrollPane scrollPane = new JScrollPane(textPanel);
-            mainPanel.add(scrollPane, BorderLayout.CENTER);
-            JPanel buttonPanel = new JPanel();
-            JButton okButton = new JButton("Ok");
-            okButton.addActionListener(actionEvent1 -> {
-                importExtensionSettingsFromJson(textPanel.getText());
-                dialog.setVisible(false);
-            });
-            buttonPanel.add(okButton);
-            JButton cancelButton = new JButton("Cancel");
-            cancelButton.addActionListener(actionEvent1 -> {
-                dialog.setVisible(false);
-            });
-            buttonPanel.add(cancelButton);
-            mainPanel.add(buttonPanel, BorderLayout.PAGE_END);
-            dialog.add(mainPanel);
-            dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-            // set dialog location and size
-            final Point burpLocation = SwingUtilities.getWindowAncestor(getUiComponent()).getLocation();
-            dialog.setLocation(burpLocation);
-            dialog.setPreferredSize(SwingUtilities.getWindowAncestor(getUiComponent()).getBounds().getSize());
-            dialog.pack();
-            dialog.setVisible(true);
+        JButton advancedSettingsButton = new JButton("Advanced");
+        advancedSettingsButton.addActionListener(actionEvent -> {
+            advancedSettingsDialog.setVisible(true);
         });
-        JButton settingsExportButton = new JButton("Export");
-        settingsExportButton.addActionListener(actionEvent -> {
-            // display settings json in a new dialog
-            JDialog dialog = new JDialog((Frame)null, "Export Settings Json", true);
-            JPanel mainPanel = new JPanel(new BorderLayout());
-            JTextArea textPanel = new JTextArea();
-            textPanel.setText(exportExtensionSettingsToJson());
-            textPanel.setEditable(false);
-            JScrollPane scrollPane = new JScrollPane(textPanel);
-            mainPanel.add(scrollPane, BorderLayout.CENTER);
-            JPanel buttonPanel = new JPanel();
-            JButton copyToClipboardButton = new JButton("Copy to clipboard");
-            copyToClipboardButton.addActionListener(actionEvent12 -> {
-                Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                clipboard.setContents(new StringSelection(textPanel.getText()), null);
-            });
-            buttonPanel.add(copyToClipboardButton);
-            JButton closeButton = new JButton("Close");
-            closeButton.addActionListener(actionEvent1 -> {
-                dialog.setVisible(false);
-            });
-            buttonPanel.add(closeButton);
-            mainPanel.add(buttonPanel, BorderLayout.PAGE_END);
-            dialog.add(mainPanel);
-            dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-            // place dialog in upper left of burp window
-            final Point burpLocation = SwingUtilities.getWindowAncestor(getUiComponent()).getLocation();
-            dialog.setLocation(burpLocation);
-            // make sure dialog height and width do not exceed burp window height and width
-            final int height = SwingUtilities.getWindowAncestor(getUiComponent()).getBounds().getSize().height;
-            final int width = SwingUtilities.getWindowAncestor(getUiComponent()).getBounds().getSize().width;
-            dialog.pack();
-            dialog.setSize(Integer.min(width, dialog.getSize().width), height);
-            dialog.setVisible(true);
-        });
-        otherSettingsPanel.add(new JLabel("Settings Json"));
-        otherSettingsPanel.add(settingsImportButton);
-        otherSettingsPanel.add(settingsExportButton);
+        checkBoxPanel.add(new JSeparator(SwingConstants.VERTICAL));
+        checkBoxPanel.add(advancedSettingsButton);
+        advancedSettingsDialog = AdvancedSettingsDialog.get();
+        advancedSettingsDialog.applyExtensionSettings(new ExtensionSettings()); // load with defaults for now
 
         GridBagConstraints c00 = new GridBagConstraints(); c00.anchor = GridBagConstraints.FIRST_LINE_START; c00.gridy = 0; c00.gridwidth = 2;
         GridBagConstraints c01 = new GridBagConstraints(); c01.anchor = GridBagConstraints.FIRST_LINE_START; c01.gridy = 1; c01.gridwidth = 2; c01.insets = new Insets(10, 0, 10, 0);
@@ -644,7 +559,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
     build Gson object for de/serialization of settings. SigCredential, SigCredentialProvider, and Path need
     to be handled as a special case since they're interfaces.
      */
-    private Gson getGsonSerializer()
+    private Gson getGsonSerializer(final double settingsVersion)
     {
         return new GsonBuilder()
                 .registerTypeAdapter(SigCredential.class, new SigCredentialSerializer())
@@ -664,131 +579,93 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
                     }
                 })
                 .setPrettyPrinting() // not necessary...
+                .setVersion(settingsVersion)
+                //.setFieldNamingPolicy(FieldNamingPolicy.UPPER_CAMEL_CASE)
                 .create();
     }
 
-    private String exportExtensionSettingsToJson()
+    protected String exportExtensionSettingsToJson()
     {
-        HashMap<String, Object> settings = new HashMap<>();
-        settings.put(SETTING_LOG_LEVEL, this.logger.getLevel());
-        settings.put(SETTING_VERSION, EXTENSION_VERSION);
-        settings.put(SETTING_PERSISTENT_PROFILES, this.persistProfilesCheckBox.isSelected());
-        settings.put(SETTING_EXTENSION_ENABLED, this.signingEnabledCheckBox.isSelected());
-        settings.put(SETTING_DEFAULT_PROFILE_NAME, this.getDefaultProfileName());
-        settings.put(SETTING_CUSTOM_HEADERS, getCustomHeadersFromUI());
-        settings.put(SETTING_CUSTOM_HEADERS_OVERWRITE, this.customHeadersOverwriteCheckbox.isSelected());
-        settings.put(SETTING_ADDITIONAL_SIGNED_HEADER_NAMES, getAdditionalSignedHeadersFromUI());
-        settings.put(SETTING_IN_SCOPE_ONLY, this.inScopeOnlyCheckBox.isSelected());
-        settings.put(SETTING_PRESERVE_HEADER_ORDER, this.preserveHeaderOrder);
-        settings.put(SETTING_PRESIGNED_URL_LIFETIME, this.presignedUrlLifetimeSeconds);
-        settings.put(SETTING_CONTENT_MD5_BEHAVIOR, this.contentMd5HeaderBehavior);
+        ExtensionSettings.ExtensionSettingsBuilder builder = ExtensionSettings.builder()
+                .logLevel(this.logger.getLevel())
+                .extensionVersion(EXTENSION_VERSION)
+                .persistProfiles(this.persistProfilesCheckBox.isSelected())
+                .extensionEnabled(this.signingEnabledCheckBox.isSelected())
+                .defaultProfileName(this.getDefaultProfileName())
+                .customSignedHeaders(getCustomHeadersFromUI())
+                .customSignedHeadersOverwrite(this.customHeadersOverwriteCheckbox.isSelected())
+                .additionalSignedHeaderNames(getAdditionalSignedHeadersFromUI())
+                .inScopeOnly(this.inScopeOnlyCheckBox.isSelected())
+                .preserveHeaderOrder(this.advancedSettingsDialog.preserveHeaderOrderCheckBox.isSelected())
+                .presignedUrlLifetimeInSeconds(this.advancedSettingsDialog.getPresignedUrlLifetimeSeconds())
+                .contentMD5HeaderBehavior(this.advancedSettingsDialog.getContentMD5HeaderBehavior())
+                .signingEnabledForSpider(advancedSettingsDialog.signingEnabledForSpiderCheckBox.isSelected())
+                .signingEnabledForScanner(advancedSettingsDialog.signingEnabledForScannerCheckBox.isSelected())
+                .signingEnabledForIntruder(advancedSettingsDialog.signingEnabledForIntruderCheckBox.isSelected())
+                .signingEnabledForRepeater(advancedSettingsDialog.signingEnabledForRepeaterCheckBox.isSelected())
+                .signingEnabledForSequencer(advancedSettingsDialog.signingEnabledForSequencerCheckBox.isSelected())
+                .signingEnabledForExtender(advancedSettingsDialog.signingEnabledForExtenderCheckBox.isSelected())
+                .addProfileComment(advancedSettingsDialog.addProfileCommentCheckBox.isSelected());
         if (this.persistProfilesCheckBox.isSelected()) {
-            settings.put(SETTING_PROFILES, this.profileNameMap);
+            builder.profiles(this.profileNameMap);
             logger.info(String.format("Saved %d profile(s)", this.profileNameMap.size()));
         }
-        return getGsonSerializer().toJson(settings);
+        ExtensionSettings settings = builder.build();
+        return getGsonSerializer(settings.settingsVersion()).toJson(settings);
     }
 
-    private void importExtensionSettingsFromJson(final String jsonString)
+    protected void importExtensionSettingsFromJson(final String jsonString)
     {
-
         if (StringUtils.isEmpty(jsonString)) {
             logger.error("Invalid Json settings. Skipping import.");
             return;
         }
-        JsonObject settings;
+
+        double settingsVersion = 0.0;
         try {
-            settings = new Gson().fromJson(jsonString, JsonObject.class);
+            settingsVersion = Double.parseDouble(callbacks.loadExtensionSetting(SETTING_CONFIG_VERSION));
+        } catch (NumberFormatException ignored) {
+        }
+
+        ExtensionSettings settings;
+        try {
+            settings = getGsonSerializer(settingsVersion).fromJson(jsonString, ExtensionSettings.class);
         } catch (JsonParseException exc) {
             logger.error("Failed to parse Json settings. Using defaults.");
-            return;
+            settings = ExtensionSettings.builder().build();
         }
 
-        if (settings.has(SETTING_LOG_LEVEL)) {
-            try {
-                setLogLevel(settings.get(SETTING_LOG_LEVEL).getAsInt());
-            } catch (NumberFormatException ignored) {
-                // use default level
-            }
-        }
+        setLogLevel(settings.logLevel());
 
         // load profiles
-        if (settings.has(SETTING_PROFILES)) {
-            final Type hashMapType = new TypeToken<HashMap<String, SigProfile>>(){}.getType();
-            Map<String, SigProfile> profileMap;
+        Map<String, SigProfile> profileMap = settings.profiles();
+        for (final String name : profileMap.keySet()) {
             try {
-                profileMap = getGsonSerializer().fromJson(settings.get(SETTING_PROFILES), hashMapType);
-            } catch (JsonParseException exc) {
-                logger.error("Failed to parse profile JSON");
-                profileMap = new HashMap<>();
-            }
-            for (final String name : profileMap.keySet()) {
-                try {
-                    addProfile(profileMap.get(name));
-                } catch (IllegalArgumentException | NullPointerException exc) {
-                    logger.error("Failed to add profile: "+name);
-                }
+                addProfile(profileMap.get(name));
+            } catch (IllegalArgumentException | NullPointerException exc) {
+                logger.error("Failed to add profile: "+name);
             }
         }
 
-        if (settings.has(SETTING_DEFAULT_PROFILE_NAME))
-            setDefaultProfileName(settings.get(SETTING_DEFAULT_PROFILE_NAME).getAsString());
-        else
-            setDefaultProfileName(NO_DEFAULT_PROFILE);
+        setDefaultProfileName(settings.defaultProfileName());
+        this.persistProfilesCheckBox.setSelected(settings.persistProfiles());
+        this.signingEnabledCheckBox.setSelected(settings.extensionEnabled());
+        setCustomHeadersInUI(settings.customSignedHeaders());
+        this.customHeadersOverwriteCheckbox.setSelected(settings.customSignedHeadersOverwrite());
+        this.additionalSignedHeadersField.setText(String.join(", ", settings.additionalSignedHeaderNames()));
+        this.inScopeOnlyCheckBox.setSelected(settings.inScopeOnly());
 
-        if (settings.has(SETTING_PERSISTENT_PROFILES))
-            this.persistProfilesCheckBox.setSelected(settings.get(SETTING_PERSISTENT_PROFILES).getAsBoolean());
-        else
-            this.persistProfilesCheckBox.setSelected(false);
-
-        if (settings.has(SETTING_EXTENSION_ENABLED))
-            this.signingEnabledCheckBox.setSelected(settings.get(SETTING_EXTENSION_ENABLED).getAsBoolean());
-        else
-            this.signingEnabledCheckBox.setSelected(true);
-
-        if (settings.has(SETTING_CUSTOM_HEADERS)) {
-            List<String> customHeaders = new ArrayList<>();
-            for (final JsonElement header : settings.get(SETTING_CUSTOM_HEADERS).getAsJsonArray()) {
-                customHeaders.add(header.getAsString());
-            }
-            setCustomHeadersInUI(customHeaders);
+        final long lifetime = settings.presignedUrlLifetimeInSeconds();
+        if (lifetime < ExtensionSettings.PRESIGNED_URL_LIFETIME_MIN_SECONDS || lifetime > ExtensionSettings.PRESIGNED_URL_LIFETIME_MAX_SECONDS) {
+            settings = settings.withPresignedUrlLifetimeInSeconds(ExtensionSettings.PRESIGNED_URL_LIFETIME_DEFAULT_SECONDS);
         }
 
-        if (settings.has(SETTING_CUSTOM_HEADERS_OVERWRITE))
-            this.customHeadersOverwriteCheckbox.setSelected(settings.get(SETTING_CUSTOM_HEADERS_OVERWRITE).getAsBoolean());
-        else
-            this.customHeadersOverwriteCheckbox.setSelected(false);
-
-        if (settings.has(SETTING_ADDITIONAL_SIGNED_HEADER_NAMES)) {
-            List<String> additionalHeaders = new ArrayList<>();
-            for (JsonElement header : settings.get(SETTING_ADDITIONAL_SIGNED_HEADER_NAMES).getAsJsonArray()) {
-                additionalHeaders.add(header.getAsString());
-            }
-            this.additionalSignedHeadersField.setText(String.join(", ", additionalHeaders));
+        final String behavior = settings.contentMD5HeaderBehavior();
+        if (!Arrays.asList(ExtensionSettings.CONTENT_MD5_REMOVE, ExtensionSettings.CONTENT_MD5_IGNORE, ExtensionSettings.CONTENT_MD5_UPDATE).contains(behavior)) {
+            settings = settings.withContentMD5HeaderBehavior(ExtensionSettings.CONTENT_MD5_DEFAULT);
         }
 
-        if (settings.has(SETTING_IN_SCOPE_ONLY))
-            this.inScopeOnlyCheckBox.setSelected(settings.get(SETTING_IN_SCOPE_ONLY).getAsBoolean());
-        else
-            this.inScopeOnlyCheckBox.setSelected(false);
-
-        if (settings.has(SETTING_PRESERVE_HEADER_ORDER))
-            this.preserveHeaderOrder = settings.get(SETTING_PRESERVE_HEADER_ORDER).getAsBoolean();
-
-        this.presignedUrlLifetimeSeconds = PRESIGNED_URL_LIFETIME_DEFAULT_SECONDS;
-        if (settings.has(SETTING_PRESIGNED_URL_LIFETIME)) {
-            final long lifetime = settings.get(SETTING_PRESIGNED_URL_LIFETIME).getAsLong();
-            if (lifetime >= PRESIGNED_URL_LIFETIME_MIN_SECONDS && lifetime <= PRESIGNED_URL_LIFETIME_MAX_SECONDS) {
-                this.presignedUrlLifetimeSeconds = lifetime;
-            }
-        }
-
-        if (settings.has(SETTING_CONTENT_MD5_BEHAVIOR)) {
-            final String behavior = settings.get(SETTING_CONTENT_MD5_BEHAVIOR).getAsString();
-            if (Arrays.asList(CONTENT_MD5_REMOVE, CONTENT_MD5_IGNORE, CONTENT_MD5_UPDATE).contains(behavior)) {
-                this.contentMd5HeaderBehavior = behavior;
-            }
-        }
+        advancedSettingsDialog.applyExtensionSettings(settings);
     }
 
     private void saveExtensionSettings()
@@ -796,6 +673,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
         // save these with their own key since they may be required before the other settings are loaded
         this.callbacks.saveExtensionSetting(SETTING_LOG_LEVEL, Integer.toString(this.logger.getLevel()));
         this.callbacks.saveExtensionSetting(SETTING_VERSION, EXTENSION_VERSION);
+        this.callbacks.saveExtensionSetting(SETTING_CONFIG_VERSION, Double.toString(ExtensionSettings.SETTINGS_VERSION));
         this.callbacks.saveExtensionSetting(BURP_SETTINGS_KEY, exportExtensionSettingsToJson());
     }
 
@@ -917,7 +795,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
                                 JOptionPane.showMessageDialog(getUiComponent(), formatMessageHtml(msg));
                             }
                             else {
-                                signedUrl = presignRequest(messages[0].getHttpService(), messages[0].getRequest(), profile, BurpExtender.this.presignedUrlLifetimeSeconds).toString();
+                                signedUrl = presignRequest(messages[0].getHttpService(), messages[0].getRequest(), profile, advancedSettingsDialog.getPresignedUrlLifetimeSeconds()).toString();
                             }
                             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                             clipboard.setContents(new StringSelection(signedUrl), null);
@@ -1348,6 +1226,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
         Set<String> signedHeaderSet = getAdditionalSignedHeadersFromUI().stream().map(String::toLowerCase).collect(Collectors.toSet());
         signedHeaderSet.add("host"); // always require host header. aws sdk should already handle this.
 
+        // Parse the authorization header for region, service, and signed header names.
         for (final String header : request.getHeaders()) {
             Matcher matcher = authorizationHeaderRegex.matcher(header);
             if (matcher.matches()) {
@@ -1366,7 +1245,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
         final String lineOne = allHeaders.remove(0);
 
         // Update Content-MD5 if applicable. aws sdk may set this for s3 uploads.
-        if (contentMd5HeaderBehavior.equals(CONTENT_MD5_UPDATE)) {
+        if (advancedSettingsDialog.getContentMD5HeaderBehavior().equals(ExtensionSettings.CONTENT_MD5_UPDATE)) {
             for (int i = 0; i < allHeaders.size(); i++) {
                 if (splitHeader(allHeaders.get(i))[0].equalsIgnoreCase("Content-MD5")) {
                     try {
@@ -1379,7 +1258,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
                 }
             }
         }
-        else if (contentMd5HeaderBehavior.equals(CONTENT_MD5_REMOVE)) {
+        else if (advancedSettingsDialog.getContentMD5HeaderBehavior().equals(ExtensionSettings.CONTENT_MD5_REMOVE)) {
             for (int i = allHeaders.size() - 1; i >= 0; i--) {
                 if (splitHeader(allHeaders.get(i))[0].equalsIgnoreCase("Content-MD5")) {
                     allHeaders.remove(i);
@@ -1471,6 +1350,8 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
 
         // signer will add these headers and may complain if they're already present
         signedHeaderMap.remove("x-amz-date"); // all signed requests have this
+        signedHeaderMap.remove("x-amz-security-token");
+        signedHeaderMap.remove("host");
 
         final byte[] body = Arrays.copyOfRange(originalRequestBytes, request.getBodyOffset(), originalRequestBytes.length);
         SdkHttpFullRequest.Builder awsRequestBuilder = SdkHttpFullRequest.builder()
@@ -1523,7 +1404,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
         }
 
         // only useful when populating the message editor tab for readability
-        if (preserveHeaderOrder) {
+        if (advancedSettingsDialog.preserveHeaderOrderCheckBox.isSelected()) {
             Map<String, Integer> headerOrderMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             int i = 0;
             for (final String header : allHeaders) {
@@ -1638,6 +1519,28 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
         return null;
     }
 
+    private boolean isSigningEnabledForTool(final int toolFlag)
+    {
+        switch (toolFlag) {
+            case IBurpExtenderCallbacks.TOOL_PROXY:
+                return advancedSettingsDialog.signingEnabledForProxyCheckbox.isSelected();
+            case IBurpExtenderCallbacks.TOOL_SPIDER:
+                return advancedSettingsDialog.signingEnabledForSpiderCheckBox.isSelected();
+            case IBurpExtenderCallbacks.TOOL_SCANNER:
+                return advancedSettingsDialog.signingEnabledForScannerCheckBox.isSelected();
+            case IBurpExtenderCallbacks.TOOL_INTRUDER:
+                return advancedSettingsDialog.signingEnabledForIntruderCheckBox.isSelected();
+            case IBurpExtenderCallbacks.TOOL_REPEATER:
+                return advancedSettingsDialog.signingEnabledForRepeaterCheckBox.isSelected();
+            case IBurpExtenderCallbacks.TOOL_SEQUENCER:
+                return advancedSettingsDialog.signingEnabledForSequencerCheckBox.isSelected();
+            case IBurpExtenderCallbacks.TOOL_EXTENDER:
+                return advancedSettingsDialog.signingEnabledForExtenderCheckBox.isSelected();
+            default:
+                return false;
+        }
+    }
+
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo)
     {
@@ -1658,7 +1561,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
             }
         }
 
-        if (messageIsRequest && signingEnabledCheckBox.isSelected()) {
+        if (messageIsRequest && signingEnabledCheckBox.isSelected() && isSigningEnabledForTool(toolFlag)) {
             if (request == null) {
                 request = helpers.analyzeRequest(messageInfo);
             }
@@ -1680,7 +1583,14 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
                 final byte[] requestBytes = signRequest(messageInfo.getHttpService(), messageInfo.getRequest(), signingProfile);
                 if (requestBytes != null) {
                     messageInfo.setRequest(requestBytes);
-                    messageInfo.setComment(DISPLAY_NAME+" "+signingProfile.getName());
+                    if (advancedSettingsDialog.addProfileCommentCheckBox.isSelected()) {
+                        final String comment = messageInfo.getComment();
+                        if (StringUtils.isEmpty(comment)) {
+                            messageInfo.setComment(String.format("%s %s", DISPLAY_NAME, signingProfile.getName()));
+                        } else {
+                            messageInfo.setComment(String.format("%s %s %s", DISPLAY_NAME, signingProfile.getName(), comment));
+                        }
+                    }
                 }
                 else {
                     callbacks.issueAlert(String.format("Failed to sign with profile \"%s\". See Extender log for details.", signingProfile.getName()));

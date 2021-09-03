@@ -2,7 +2,7 @@
 
 This file describes the JSON settings for the extension. Most settings can be
 configured in the UI tab, but some more advanced settings are only available by
-first exporting the settings JSON, modifying the setting, then importing.  
+first exporting the settings JSON, modifying the setting, then importing.
 
 ### AdditionalSignedHeaderNames
 
@@ -14,6 +14,8 @@ original request. Note that some headers cannot be included, such as User-Agent 
 the AWS SDK will ignore them. 
 
 ### ContentMD5HeaderBehavior
+
+**UI name: Advanced -> ContentMD5 Header Behavior**
 
 Takes 3 possible values that determine handling of the Content-MD5 header:
 
@@ -82,10 +84,14 @@ the "Export" button.
 
 ### PreserveHeaderOrder
 
+**UI name: Advanced -> Preserve Header Order**
+
 If true, preserve the order of request headers after signing. This is simply for
 aesthetic reasons when displaying the signed request in the message editor tab.
 
 ### PresignedUrlLifetimeInSeconds
+
+**UI name: Advanced -> Presigned URL Lifetime Seconds**
 
 Sets the lifetime of a presigned URL created using the "Copy Signed URL" context
 menu item. See https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html.
@@ -95,3 +101,10 @@ menu item. See https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-strin
 **UI name: AWS Credentials**
 
 If *PersistentProfiles* is true, this contains the GSON serialized profiles.
+
+### SigningEnabledFor*
+
+**UI name: Advanced -> Tools Enabled for Signing**
+
+This setting exists for each Burp tool. If true, signing will be enabled for
+requests originating from that tool. Default is to sign requests for all tools.
