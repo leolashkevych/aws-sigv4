@@ -3,7 +3,7 @@ ExtensionType: 1
 Name: AWS Sigv4
 RepoName: aws-sigv4
 ScreenVersion: 0.2.6
-SerialVersion: 2
+SerialVersion: 3
 MinPlatformVersion: 0
 ProOnly: False
 Author: Anvil Secure
