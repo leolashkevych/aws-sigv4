@@ -154,6 +154,7 @@ public class SigProfileEditorDialog extends JDialog
         outerPanel.add(providerPanel, newConstraint(0, outerPanelY++, GridBagConstraints.LINE_START));
         statusLabel = new JLabel("<html><i>Ok to submit</i></html>");
         statusLabel.setForeground(BurpExtender.textOrange);
+        statusLabel.putClientProperty("html.disable", null);
         okButton = new JButton("Ok");
         JButton cancelButton = new JButton("Cancel");
 
