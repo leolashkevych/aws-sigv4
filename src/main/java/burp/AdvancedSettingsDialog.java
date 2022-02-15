@@ -173,6 +173,7 @@ public class AdvancedSettingsDialog extends JDialog {
         // status message
         statusLabel = new JLabel(DEFAULT_STATUS_LABEL_TEXT);
         statusLabel.setForeground(BurpExtender.textOrange);
+        statusLabel.putClientProperty("html.disable", null);
         GridBagConstraints c04 = new GridBagConstraints();
         c04.gridx = 0;
         c04.gridy = outerPanelY++;
