@@ -156,6 +156,7 @@ public class SigProfileEditorDialog extends JDialog
         Font defaultFont = statusLabel.getFont();
         statusLabel.setFont(new Font(defaultFont.getFamily(), Font.ITALIC, defaultFont.getSize()));
         statusLabel.setForeground(BurpExtender.textOrange);
+        statusLabel.putClientProperty("html.disable", null);
         okButton = new JButton("Ok");
         JButton cancelButton = new JButton("Cancel");
 
