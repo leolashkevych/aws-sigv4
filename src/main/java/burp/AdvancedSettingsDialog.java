@@ -175,7 +175,6 @@ public class AdvancedSettingsDialog extends JDialog {
         Font defaultFont = statusLabel.getFont();
         statusLabel.setFont(new Font(defaultFont.getFamily(), Font.ITALIC, defaultFont.getSize()));
         statusLabel.setForeground(BurpExtender.textOrange);
-        statusLabel.putClientProperty("html.disable", null);
         GridBagConstraints c04 = new GridBagConstraints();
         c04.gridx = 0;
         c04.gridy = outerPanelY++;
