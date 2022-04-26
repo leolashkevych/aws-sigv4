@@ -2,6 +2,8 @@ package burp;
 
 import burp.error.SigCredentialProviderException;
 import org.apache.commons.lang3.StringUtils;
+import org.json.JSONObject;
+import org.json.JSONException;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -23,6 +25,7 @@ public class SigAssumeRoleCredentialProvider implements SigCredentialProvider, C
     private String sessionName;
     private int durationSeconds;
     private String externalId;
+    private String assumeRolePolicy;
 
     private transient SigTemporaryCredential temporaryCredential;
     private SigCredential staticCredential;
@@ -45,10 +48,20 @@ public class SigAssumeRoleCredentialProvider implements SigCredentialProvider, C
     {
         return this.durationSeconds;
     }
+    public String getAssumeRolePolicy() { return this.assumeRolePolicy; }
 
     public SigCredential getStaticCredential()
     {
         return this.staticCredential;
+    }
+
+    public boolean isJSONValid(String test) {
+        try {
+            new JSONObject(test);
+        } catch (JSONException ex) {
+            return false;
+        }
+        return true;
     }
 
     private SigAssumeRoleCredentialProvider() {};
@@ -97,12 +110,22 @@ public class SigAssumeRoleCredentialProvider implements SigCredentialProvider, C
             throw new IllegalArgumentException("AssumeRole roleSessionName must match pattern "+roleSessionNamePattern.pattern());
     }
 
+    private void setAssumeRolePolicy(final String assumeRolePolicy)
+    {
+        // Verify JSON is valid
+        if(isJSONValid(assumeRolePolicy))
+            this.assumeRolePolicy = assumeRolePolicy;
+        else
+            throw new IllegalArgumentException("The policy JSON provided is invalid.");
+    }
+
     protected SigAssumeRoleCredentialProvider clone()
     {
         return new SigAssumeRoleCredentialProvider.Builder(this.roleArn, this.staticCredential)
                 .withDurationSeconds(this.durationSeconds)
                 .withRoleSessionName(this.sessionName)
                 .tryExternalId(this.externalId)
+                .tryPolicy(this.assumeRolePolicy)
                 .build();
     }
 
@@ -150,6 +173,18 @@ public class SigAssumeRoleCredentialProvider implements SigCredentialProvider, C
                 withExternalId(externalId);
             else
                 this.assumeRole.externalId = "";
+            return this;
+        }
+        public Builder withPolicy(final String assumeRolePolicy) {
+            this.assumeRole.setAssumeRolePolicy(assumeRolePolicy);
+            return this;
+        }
+
+        public Builder tryPolicy(final String assumeRolePolicy) {
+            if (StringUtils.isNotEmpty(assumeRolePolicy))
+                withPolicy(assumeRolePolicy);
+            else
+                this.assumeRole.assumeRolePolicy = null;
             return this;
         }
         public SigAssumeRoleCredentialProvider build() {
@@ -212,6 +247,11 @@ public class SigAssumeRoleCredentialProvider implements SigCredentialProvider, C
         if (StringUtils.isNotEmpty(this.externalId)) {
             requestBuilder.externalId(this.externalId);
         }
+
+        if (StringUtils.isNotEmpty(this.assumeRolePolicy)) {
+            requestBuilder.policy(this.assumeRolePolicy);
+        }
+
 
         try {
             AssumeRoleResponse roleResponse = stsClient.assumeRole(requestBuilder.build());

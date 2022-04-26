@@ -11,6 +11,7 @@ import java.time.Instant;
 public class SigProfileEditorDialog extends JDialog
 {
     static final Color disabledColor = new Color(161, 161, 161);
+
     private static final BurpExtender burp = BurpExtender.getBurp();
 
     protected JTextField nameTextField;
@@ -33,6 +34,10 @@ public class SigProfileEditorDialog extends JDialog
     private JTextField sessionNameTextField;
     private JTextField externalIdTextField;
 
+    private JTextArea assumeRolePolicyTextArea;
+
+    private JScrollPane assumeRolePolicyScrollPane;
+
     // Http provider
     private JRadioButton httpProviderRadioButton;
     private JTextField httpProviderUrlField;
@@ -42,6 +47,19 @@ public class SigProfileEditorDialog extends JDialog
 
     // allow creator of dialog to get the profile that was created
     public String getNewProfileName() { return newProfileName; }
+
+    public String getDefaultAssumeRolePolicy(){
+        return "{\n" +
+                "    \"Version\": \"2012-10-17\",\n" +
+                "    \"Statement\": [\n" +
+                "        {\n" +
+                "            \"Effect\": \"Allow\",\n" +
+                "            \"Action\": \"*\",\n" +
+                "            \"Resource\": \"*\"\n" +
+                "        }\n" +
+                "    ]\n" +
+                "}";
+    }
 
     private static GridBagConstraints newConstraint(int gridx, int gridy, int gridwidth, int gridheight)
     {
@@ -141,6 +159,15 @@ public class SigProfileEditorDialog extends JDialog
         rolePanel.add(new JLabel("ExternalId"), newConstraint(0, 2, GridBagConstraints.LINE_START));
         this.externalIdTextField = new JTextFieldHint("", TEXT_FIELD_WIDTH-3, "Optional");
         rolePanel.add(this.externalIdTextField, newConstraint(1, 2));
+        rolePanel.add(new JLabel("Policy"), newConstraint(0, 3, GridBagConstraints.LINE_START));
+        //this.assumeRolePolicyTextArea = new JTextFieldHint("", TEXT_FIELD_WIDTH-3, "Optional");
+        this.assumeRolePolicyTextArea = new JTextArea(10, TEXT_FIELD_WIDTH - 4);
+        this.assumeRolePolicyTextArea.setLineWrap(true);
+        this.assumeRolePolicyTextArea.setText(getDefaultAssumeRolePolicy());
+        this.assumeRolePolicyScrollPane = new JScrollPane(this.assumeRolePolicyTextArea,
+                JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        rolePanel.add(this.assumeRolePolicyScrollPane, newConstraint(1, 3));
         providerPanel.add(rolePanel, newConstraint(0, providerPanelY++, GridBagConstraints.LINE_START));
 
         // panel for http provided creds
@@ -189,7 +216,7 @@ public class SigProfileEditorDialog extends JDialog
             final String sessionToken = sessionTokenTextField.getText();
 
             try {
-                if (profile != null && !roleArnTextField.getText().equals("")) {
+                if (profile != null) {
                     // edit dialog
                     final SigStaticCredential staticCredential = new SigStaticCredential(accessKeyIdTextField.getText(), secretKeyTextField.getText());
                     if (profile.getAssumeRole() != null) {
@@ -198,12 +225,14 @@ public class SigProfileEditorDialog extends JDialog
                                 .withCredential(staticCredential)
                                 .tryExternalId(externalIdTextField.getText())
                                 .tryRoleSessionName(sessionNameTextField.getText())
+                                .tryPolicy(assumeRolePolicyTextArea.getText())
                                 .build();
                     }
                     else {
                         assumeRole = new SigAssumeRoleCredentialProvider.Builder(roleArnTextField.getText(), staticCredential)
                                 .tryExternalId(externalIdTextField.getText())
                                 .tryRoleSessionName(sessionNameTextField.getText())
+                                .tryPolicy(assumeRolePolicyTextArea.getText())
                                 .build();
                     }
                 }
@@ -285,6 +314,7 @@ public class SigProfileEditorDialog extends JDialog
                 roleArnTextField.setText(profile.getAssumeRole().getRoleArn());
                 sessionNameTextField.setText(profile.getAssumeRole().getSessionName());
                 externalIdTextField.setText(profile.getAssumeRole().getExternalId());
+                assumeRolePolicyTextArea.setText(profile.getAssumeRole().getAssumeRolePolicy());
                 // initialize static creds as well
                 accessKeyIdTextField.setText(profile.getAssumeRole().getStaticCredential().getAccessKeyId());
                 secretKeyTextField.setText(profile.getAssumeRole().getStaticCredential().getSecretKey());

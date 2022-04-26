@@ -2,7 +2,7 @@ plugins {
     id 'java-library'
 }
 
-version '0.2.7-all'
+version '0.2.8-@lashkevych'
 
 compileJava.sourceCompatibility = JavaVersion.VERSION_11
 targetCompatibility = JavaVersion.VERSION_11
@@ -20,6 +20,7 @@ dependencies {
     implementation 'software.amazon.awssdk:apache-client'
     implementation 'org.slf4j:slf4j-simple:1.7.+'
     implementation 'org.apache.commons:commons-lang3:3.12.+'
+    implementation 'org.json:json:20220320'
     compileOnly 'org.projectlombok:lombok:1.18.+'
     annotationProcessor 'org.projectlombok:lombok:1.18.+'
 }
