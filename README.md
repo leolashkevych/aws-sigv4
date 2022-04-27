@@ -1,4 +1,11 @@
 # AWS SigV4
+## Why This Fork?
+### Features 
+- Support for custom policies when assuming a role.
+
+Release JAR: [v0.2.8-@lashkevych](https://github.com/leolashkevych/aws-sigv4/releases/tag/v0.2.8-%40lashkevych)
+
+---
 This is a Burp extension for signing AWS requests with SigV4. Signature Version 4 is a process to add
 authentication information to AWS HTTP requests. More information can be found here:
 https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
