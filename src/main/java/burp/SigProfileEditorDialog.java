@@ -216,7 +216,7 @@ public class SigProfileEditorDialog extends JDialog
             final String sessionToken = sessionTokenTextField.getText();
 
             try {
-                if (profile != null) {
+                if (profile != null && assumeRoleProviderRadioButton.isSelected()) {
                     // edit dialog
                     final SigStaticCredential staticCredential = new SigStaticCredential(accessKeyIdTextField.getText(), secretKeyTextField.getText());
                     if (profile.getAssumeRole() != null) {
