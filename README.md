@@ -1,9 +1,11 @@
 # AWS SigV4
 ## Why This Fork?
 ### Features 
-- Support for custom policies when assuming a role.
+- A modified profile editor allows to specify a custom policy when assuming a role.
+- Ability to quick add temporary credentials captured from server response.
+  - Supports AWS Cognito and STS temporary credentials formats.
 
-Release JAR: [v0.2.8-@lashkevych](https://github.com/leolashkevych/aws-sigv4/releases/tag/v0.2.8-%40lashkevych)
+Latest Release JAR: [v0.2.9-@leolashkevych](https://github.com/leolashkevych/aws-sigv4/releases/tag/v0.2.9-%40leolashkevych)
 
 ---
 This is a Burp extension for signing AWS requests with SigV4. Signature Version 4 is a process to add
