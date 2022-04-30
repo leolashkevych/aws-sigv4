@@ -1,10 +1,18 @@
 package burp;
 
 import burp.error.SigCredentialProviderException;
-import org.apache.commons.lang3.StringUtils;
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParseException;
+import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
+import org.apache.commons.lang3.StringUtils;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONTokener;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -22,6 +30,8 @@ import software.amazon.awssdk.services.sts.model.StsException;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -29,10 +39,12 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -759,12 +771,63 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
         List<JMenuItem> list = new ArrayList<>();
         list.add(menu);
 
+        JMenuItem importTempCredsMenuItem = new JMenuItem("Use assumed role credentials");
+
+        // Retrieve message
+        IHttpRequestResponse[] messages = invocation.getSelectedMessages();
+
+
         // add context menu items
         switch (invocation.getInvocationContext()) {
+            case IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_RESPONSE:
+                String contentType = "";
+                IResponseInfo responseInfo = helpers.analyzeResponse(messages[0].getResponse());
+                for(String header : responseInfo.getHeaders()){
+                    String currentHeader = header.toLowerCase();
+                    if(currentHeader.startsWith("content-type")){
+                        contentType = currentHeader;
+                    }
+                }
+
+                int offset = responseInfo.getBodyOffset();
+                String responseBody = new String(messages[0].getResponse(), StandardCharsets.UTF_8).substring(offset);
+
+                if(contentType.toLowerCase().contains("json")){
+                    // Check if valid JSON
+                    try{
+                        JSONTokener tokener = new JSONTokener(responseBody);
+                        JSONObject jsonObject = new JSONObject(tokener);
+
+                        // If Credentials object exists, add the button with action
+                        if (jsonObject.has("Credentials")){
+                            list.add(importTempCredsMenuItem);
+                            importTempCredsMenuItem.addActionListener(new AddTempCredsActionListener(responseBody,
+                                    AddTempCredsActionListener.CONTENT_TYPE.JSON));
+                        }
+                    } catch (JSONException e) {
+                        logger.error("Malformed JSON Provided: " + e.getMessage());
+                    }
+                } else if (contentType.toLowerCase().contains("xml")) {
+                    // Check if valid XML
+                    try{
+                        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+                        DocumentBuilder db = dbf.newDocumentBuilder();
+                        Document doc = db.parse(new InputSource(new StringReader(responseBody)));
+
+                        // If assume role object exists, add the button with action
+                        if(doc.getElementsByTagName("AssumeRoleResult").getLength() > 0){
+                            list.add(importTempCredsMenuItem);
+                            importTempCredsMenuItem.addActionListener(new AddTempCredsActionListener(responseBody,
+                                    AddTempCredsActionListener.CONTENT_TYPE.XML));
+                        }
+                    } catch (Exception e) {
+                        logger.error("Unable to parse XML: " + e.getMessage());
+                    }
+                }
+
             case IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_REQUEST:
             case IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_REQUEST:
             case IContextMenuInvocation.CONTEXT_PROXY_HISTORY:
-                IHttpRequestResponse[] messages = invocation.getSelectedMessages();
                 IRequestInfo requestInfo = helpers.analyzeRequest(messages[0]);
 
                 final List<String> authorizationHeaders = requestInfo.getHeaders().stream()

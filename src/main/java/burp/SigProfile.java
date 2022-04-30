@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -40,6 +41,10 @@ public class SigProfile implements Cloneable
     public static final Pattern regionPattern = Pattern.compile("^[a-zA-Z]{1,4}-(?:gov-)?[a-zA-Z]{1,16}-[0-9]{1,2}$");
     public static final Pattern servicePattern = Pattern.compile("^[\\w_-]{1,64}$");
 
+    public static String getTempProfileName(){
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+        return "Temp" + dateFormat.format(new Date());
+    }
     public String getName() { return this.name; }
     public SigAssumeRoleCredentialProvider getAssumeRole()
     {
