@@ -4,7 +4,7 @@
 - A modified profile editor allows to specify a custom policy when assuming a role.
 - Ability to quick add temporary credentials captured from server response.
   - Supports AWS Cognito and STS temporary credentials formats.
-- Users can specify a command to be executed from `sh` or `cmd` which returns AWS credentials for programmatic accecss. The credentials will be parsed from command's output and used in a signing profile.  
+- Users can specify a command to be executed from `sh` or `cmd` which returns AWS credentials for programmatic access. The credentials will be parsed from command's output and used in a signing profile.  
 
 Latest Release JAR: [v0.2.10-@leolashkevych](https://github.com/leolashkevych/aws-sigv4/releases/tag/v0.2.10-%40leolashkevych)
 
