@@ -62,7 +62,7 @@ import java.util.stream.Stream;
 public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtensionStateListener, IMessageEditorTabFactory, IContextMenuFactory
 {
     // make sure to update version in build.gradle as well
-    private static final String EXTENSION_VERSION = "0.2.7";
+    private static final String EXTENSION_VERSION = "0.2.10";
 
     private static final String BURP_SETTINGS_KEY = "JsonSettings";
     private static final String SETTING_VERSION = "ExtensionVersion";
@@ -379,6 +379,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
                                     })
                                     .build();
                             GetCallerIdentityResponse response = stsClient.getCallerIdentity();
+                            logger.info("Testing profile " + profile + ". Response: " + response);
                             JDialog dialog = new SigProfileTestDialog(null, profile, false, response);
                             dialog.setVisible(true);
                         } catch (SigCredentialProviderException | StsException exc) {

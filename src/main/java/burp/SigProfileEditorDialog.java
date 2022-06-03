@@ -6,6 +6,7 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.io.IOException;
 import java.time.Instant;
 
 public class SigProfileEditorDialog extends JDialog
@@ -40,7 +41,13 @@ public class SigProfileEditorDialog extends JDialog
 
     // Http provider
     private JRadioButton httpProviderRadioButton;
+
+    private JRadioButton commandProviderRadioButton;
+
     private JTextField httpProviderUrlField;
+
+    private JTextField commandProviderField;
+
 
     private MultilineLabel statusLabel;
     private String newProfileName = null;
@@ -123,14 +130,17 @@ public class SigProfileEditorDialog extends JDialog
         staticProviderRadioButton.setSelected(true); //default
         assumeRoleProviderRadioButton = new JRadioButton("AssumeRole");
         httpProviderRadioButton = new JRadioButton("HttpGet");
+        commandProviderRadioButton = new JRadioButton("CLI Command");
         ButtonGroup providerButtonGroup = new ButtonGroup();
         providerButtonGroup.add(staticProviderRadioButton);
         providerButtonGroup.add(assumeRoleProviderRadioButton);
         providerButtonGroup.add(httpProviderRadioButton);
+        providerButtonGroup.add(commandProviderRadioButton);
         JPanel providerButtonPanel = new JPanel(new FlowLayout());
         providerButtonPanel.add(staticProviderRadioButton);
         providerButtonPanel.add(assumeRoleProviderRadioButton);
         providerButtonPanel.add(httpProviderRadioButton);
+        providerButtonPanel.add(commandProviderRadioButton);
         providerPanel.add(providerButtonPanel, newConstraint(0, providerPanelY++, GridBagConstraints.LINE_START));
 
         // panel for static credentials
@@ -173,10 +183,18 @@ public class SigProfileEditorDialog extends JDialog
         // panel for http provided creds
         JPanel httpPanel = new JPanel(new GridBagLayout());
         httpPanel.setBorder(new TitledBorder("Http Credentials"));
-        httpPanel.add(new JLabel("GET Url"), newConstraint(0, 0, GridBagConstraints.LINE_START));
+        httpPanel.add(new JLabel("GET URL "), newConstraint(0, 0, GridBagConstraints.LINE_START));
         this.httpProviderUrlField = new JTextFieldHint("", TEXT_FIELD_WIDTH-2, "Required");
         httpPanel.add(this.httpProviderUrlField, newConstraint(1, 0));
         providerPanel.add(httpPanel, newConstraint(0, providerPanelY++, GridBagConstraints.LINE_START));
+
+        // panel for CLI Command
+        JPanel commandPanel = new JPanel(new GridBagLayout());
+        commandPanel.setBorder(new TitledBorder("CLI Command"));
+        commandPanel.add(new JLabel("Command "), newConstraint(0, 0, GridBagConstraints.LINE_START));
+        this.commandProviderField = new JTextFieldHint("", TEXT_FIELD_WIDTH-2, "Required");
+        commandPanel.add(this.commandProviderField, newConstraint(1, 0));
+        providerPanel.add(commandPanel, newConstraint(0, providerPanelY++, GridBagConstraints.LINE_START));
 
         outerPanel.add(providerPanel, newConstraint(0, outerPanelY++, GridBagConstraints.LINE_START));
         statusLabel = new MultilineLabel("Ok to submit");
@@ -196,6 +214,7 @@ public class SigProfileEditorDialog extends JDialog
             staticCredentialsPanel.setVisible(staticProviderRadioButton.isSelected());
             rolePanel.setVisible(assumeRoleProviderRadioButton.isSelected());
             httpPanel.setVisible(httpProviderRadioButton.isSelected());
+            commandPanel.setVisible(commandProviderRadioButton.isSelected());
             if (actionEvent.getSource().equals(assumeRoleProviderRadioButton)) {
                 staticCredentialsPanel.setVisible(true);
             }
@@ -204,6 +223,7 @@ public class SigProfileEditorDialog extends JDialog
         this.staticProviderRadioButton.addActionListener(providerButtonActionListener);
         this.assumeRoleProviderRadioButton.addActionListener(providerButtonActionListener);
         this.httpProviderRadioButton.addActionListener(providerButtonActionListener);
+        this.commandProviderRadioButton.addActionListener(providerButtonActionListener);
 
         cancelButton.addActionListener(actionEvent -> {
             setVisible(false);
@@ -248,6 +268,11 @@ public class SigProfileEditorDialog extends JDialog
                             httpProviderRadioButton.isSelected() ? SigProfile.DEFAULT_HTTP_PRIORITY : SigProfile.DISABLED_PRIORITY);
                 }
 
+                if (!commandProviderField.getText().equals("")) {
+                    newProfileBuilder.withCredentialProvider(new SigCommandCredentialProvider(commandProviderField.getText()),
+                            commandProviderRadioButton.isSelected() ? SigProfile.DEFAULT_COMMAND_PRIORITY : SigProfile.DISABLED_PRIORITY);
+                }
+
                 if (assumeRole != null)
                     newProfileBuilder.withCredentialProvider(assumeRole, assumeRoleProviderRadioButton.isSelected() ? SigProfile.DEFAULT_ASSUMEROLE_PRIORITY : SigProfile.DISABLED_PRIORITY);
 
@@ -267,7 +292,7 @@ public class SigProfileEditorDialog extends JDialog
                 newProfileName = newProfile.getName();
                 setVisible(false);
                 dispose();
-            } catch (IllegalArgumentException exc) {
+            } catch (IllegalArgumentException | IOException | InterruptedException exc) {
                 setStatusLabel("Invalid settings: " + exc.getMessage());
             }
         });
@@ -276,6 +301,7 @@ public class SigProfileEditorDialog extends JDialog
         staticCredentialsPanel.setVisible(staticProviderRadioButton.isSelected());
         httpPanel.setVisible(httpProviderRadioButton.isSelected());
         rolePanel.setVisible(assumeRoleProviderRadioButton.isSelected());
+        commandPanel.setVisible(commandProviderRadioButton.isSelected());
         applyProfile(profile);
 
         add(outerPanel);
@@ -329,6 +355,12 @@ public class SigProfileEditorDialog extends JDialog
                 httpProviderUrlField.setText(profile.getHttpCredentialProvider().getUrl().toString());
                 if (profile.getHttpCredentialProviderPriority() >= 0) {
                     httpProviderRadioButton.doClick();
+                }
+            }
+            if (profile.getCommandCredentialProvider() != null) {
+                commandProviderField.setText(profile.getCommandCredentialProvider().getCommand());
+                if (profile.getCommandCredentialProviderPriority() >= 0) {
+                    commandProviderRadioButton.doClick();
                 }
             }
         }
