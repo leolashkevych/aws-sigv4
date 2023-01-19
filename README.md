@@ -6,7 +6,7 @@
   - Supports AWS Cognito and STS temporary credentials formats.
 - Users can specify a command to be executed from `sh` or `cmd` which returns AWS credentials for programmatic access. The credentials will be parsed from command's output and used in a signing profile.  
 
-Latest Release JAR: [v0.2.10-@leolashkevych](https://github.com/leolashkevych/aws-sigv4/releases/tag/v0.2.10-%40leolashkevych)
+Latest Release JAR: [v0.2.11-@leolashkevych](https://github.com/leolashkevych/aws-sigv4/releases/tag/v0.2.11-%40leolashkevych)
 
 ---
 This is a Burp extension for signing AWS requests with SigV4. Signature Version 4 is a process to add

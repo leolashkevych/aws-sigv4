@@ -8,6 +8,8 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SigProfileEditorDialog extends JDialog
 {
@@ -34,6 +36,8 @@ public class SigProfileEditorDialog extends JDialog
     private JTextField roleArnTextField;
     private JTextField sessionNameTextField;
     private JTextField externalIdTextField;
+
+    private JComboBox<String> optionsComboBox;
 
     private JTextArea assumeRolePolicyTextArea;
 
@@ -67,6 +71,138 @@ public class SigProfileEditorDialog extends JDialog
                 "    ]\n" +
                 "}";
     }
+    private String policyDenyAll = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Deny\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+    private String policyExplicitAllow = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"service:operation\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+
+    private String policyDenyPassRole = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "            \"Effect\": \"Deny\",\n" +
+            "            \"Action\": \"iam:PassRole\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+
+    private String policyExplicitDeny = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "            \"Effect\": \"Deny\",\n" +
+            "            \"Action\": \"service:operation\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+
+    private String policyExplicitAllowForResource = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"service:operation\",\n" +
+            "            \"Resource\": \"arn:partition:service:region:account-id:resource-id\"\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+    private String policyExplicitDenyForResource = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "            \"Effect\": \"Deny\",\n" +
+            "            \"Action\": \"service:operation\",\n" +
+            "            \"Resource\": \"arn:partition:service:region:account-id:resource-id\"\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+
+    private String policyExplicitAllowForResourceAccount = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"arn:partition:service:region:account-id:resource-id\",\n" +
+            "            \"Condition\": {\n" +
+            "                \"StringEquals\": {\n" +
+            "                    \"aws:ResourceAccount\": \"123456789012\"\n" +
+            "                }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+
+    private String policyExplicitAllowForIpAddress = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"*\",\n" +
+            "            \"Condition\": {\n" +
+            "                \"IpAddress\": {\n" +
+            "                    \"aws:SourceIp\": \"127.0.0.1\"\n" +
+            "                }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+
+    private String policyExplicitDenyForIpAddress = "{\n" +
+            "    \"Version\": \"2012-10-17\",\n" +
+            "    \"Statement\": [\n" +
+            "        {\n" +
+            "            \"Effect\": \"Allow\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"*\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "            \"Effect\": \"Deny\",\n" +
+            "            \"Action\": \"*\",\n" +
+            "            \"Resource\": \"*\",\n" +
+            "            \"Condition\": {\n" +
+            "                \"IpAddress\": {\n" +
+            "                    \"aws:SourceIp\": \"127.0.0.1\"\n" +
+            "                }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    ]\n" +
+            "}";
+
 
     private static GridBagConstraints newConstraint(int gridx, int gridy, int gridwidth, int gridheight)
     {
@@ -157,6 +293,20 @@ public class SigProfileEditorDialog extends JDialog
         staticCredentialsPanel.add(sessionTokenTextField, newConstraint(1, 2));
         providerPanel.add(staticCredentialsPanel, newConstraint(0, providerPanelY++, GridBagConstraints.LINE_START));
 
+        // assume role policy templates
+
+        Map<String, String> optionTextMap = new HashMap<>();
+        optionTextMap.put("Allow All", getDefaultAssumeRolePolicy());
+        optionTextMap.put("Deny All", policyDenyAll);
+        optionTextMap.put("Explicit Allow", policyExplicitAllow);
+        optionTextMap.put("Explicit Deny", policyExplicitDeny);
+        optionTextMap.put("Deny PassRole", policyDenyPassRole);
+        optionTextMap.put("Explicit Allow for Resource", policyExplicitAllowForResource);
+        optionTextMap.put("Explicit Deny for Resource", policyExplicitDenyForResource);
+        optionTextMap.put("Explicit Allow for Resource Account", policyExplicitAllowForResourceAccount);
+        optionTextMap.put("IP Address Allow", policyExplicitAllowForIpAddress);
+        optionTextMap.put("IP Address Deny", policyExplicitDenyForIpAddress);
+
         // panel for assume role fields
         JPanel rolePanel = new JPanel(new GridBagLayout());
         rolePanel.setBorder(new TitledBorder("Role"));
@@ -169,16 +319,30 @@ public class SigProfileEditorDialog extends JDialog
         rolePanel.add(new JLabel("ExternalId"), newConstraint(0, 2, GridBagConstraints.LINE_START));
         this.externalIdTextField = new JTextFieldHint("", TEXT_FIELD_WIDTH-3, "Optional");
         rolePanel.add(this.externalIdTextField, newConstraint(1, 2));
-        rolePanel.add(new JLabel("Policy"), newConstraint(0, 3, GridBagConstraints.LINE_START));
-        //this.assumeRolePolicyTextArea = new JTextFieldHint("", TEXT_FIELD_WIDTH-3, "Optional");
+        this.optionsComboBox = new JComboBox<>(optionTextMap.keySet().toArray(new String[0]));
+        rolePanel.add(optionsComboBox, newConstraint(1, 3));
+        rolePanel.add(new JLabel("Policy Template"), newConstraint(0, 3, GridBagConstraints.LINE_START));
+        this.optionsComboBox.setSelectedItem(null);
+        rolePanel.add(new JLabel("Policy"), newConstraint(0, 4, GridBagConstraints.LINE_START));
         this.assumeRolePolicyTextArea = new JTextArea(10, TEXT_FIELD_WIDTH - 4);
         this.assumeRolePolicyTextArea.setLineWrap(true);
         this.assumeRolePolicyTextArea.setText(getDefaultAssumeRolePolicy());
         this.assumeRolePolicyScrollPane = new JScrollPane(this.assumeRolePolicyTextArea,
                 JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        rolePanel.add(this.assumeRolePolicyScrollPane, newConstraint(1, 3));
+        rolePanel.add(this.assumeRolePolicyScrollPane, newConstraint(1, 4));
         providerPanel.add(rolePanel, newConstraint(0, providerPanelY++, GridBagConstraints.LINE_START));
+
+
+        // Add an ActionListener to the JComboBox
+        this.optionsComboBox.addActionListener(e -> {
+            // Get the selected option
+            String selectedOption = (String) this.optionsComboBox.getSelectedItem();
+            // Get the predefined text for the selected option
+            String optionText = optionTextMap.get(selectedOption);
+            // Update the assumeRolePolicyTextArea with the predefined text
+            this.assumeRolePolicyTextArea.setText(optionText);
+        });
 
         // panel for http provided creds
         JPanel httpPanel = new JPanel(new GridBagLayout());
