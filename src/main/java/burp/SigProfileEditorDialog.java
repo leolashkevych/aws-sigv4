@@ -402,18 +402,20 @@ public class SigProfileEditorDialog extends JDialog
             try {
                 if (profile != null && assumeRoleProviderRadioButton.isSelected()) {
                     // edit dialog
-                    final SigStaticCredential staticCredential = new SigStaticCredential(accessKeyIdTextField.getText(), secretKeyTextField.getText());
+                    SigCredential credential = new SigStaticCredential(accessKeyId, secretKey);
+                    if (!sessionToken.equals(""))
+                        credential = new SigTemporaryCredential(accessKeyId, secretKey, sessionToken, Instant.now().getEpochSecond() + 900);
                     if (profile.getAssumeRole() != null) {
                         assumeRole = new SigAssumeRoleCredentialProvider.Builder(profile.getAssumeRole())
                                 .withRoleArn(roleArnTextField.getText())
-                                .withCredential(staticCredential)
+                                .withCredential(credential)
                                 .tryExternalId(externalIdTextField.getText())
                                 .tryRoleSessionName(sessionNameTextField.getText())
                                 .tryPolicy(assumeRolePolicyTextArea.getText())
                                 .build();
                     }
                     else {
-                        assumeRole = new SigAssumeRoleCredentialProvider.Builder(roleArnTextField.getText(), staticCredential)
+                        assumeRole = new SigAssumeRoleCredentialProvider.Builder(roleArnTextField.getText(), credential)
                                 .tryExternalId(externalIdTextField.getText())
                                 .tryRoleSessionName(sessionNameTextField.getText())
                                 .tryPolicy(assumeRolePolicyTextArea.getText())

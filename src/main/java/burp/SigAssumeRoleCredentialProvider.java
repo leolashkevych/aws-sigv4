@@ -5,12 +5,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.json.JSONObject;
 import org.json.JSONException;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sts.StsClient;
-import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
-import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
-import software.amazon.awssdk.services.sts.model.Credentials;
-import software.amazon.awssdk.services.sts.model.StsException;
+import software.amazon.awssdk.services.sts.model.*;
+
 
 import java.util.regex.Pattern;
 
@@ -157,7 +156,7 @@ public class SigAssumeRoleCredentialProvider implements SigCredentialProvider, C
             this.assumeRole.setDurationSeconds(durationSeconds);
             return this;
         }
-        public Builder withCredential(SigStaticCredential credential) {
+        public Builder withCredential(SigCredential credential) {
             if (credential == null) {
                 throw new IllegalArgumentException("AssumeRole permanent credential cannot be null");
             }
@@ -234,11 +233,21 @@ public class SigAssumeRoleCredentialProvider implements SigCredentialProvider, C
         burp.logger.info("Fetching temporary credentials for role "+this.roleArn);
         this.temporaryCredential = null;
 
+
+        burp.logger.info("creds temp:"+ this.staticCredential.isTemporary());
         StsClient stsClient = StsClient.builder()
                 .httpClient(new SdkHttpClientForBurp())
                 .region(Region.US_EAST_1)
-                .credentialsProvider(() -> AwsBasicCredentials.create(staticCredential.getAccessKeyId(), staticCredential.getSecretKey()))
+                .credentialsProvider(() -> AwsBasicCredentials.create(this.staticCredential.getAccessKeyId(), this.staticCredential.getSecretKey()))
                 .build();
+
+        if(this.staticCredential.isTemporary()){
+            stsClient = StsClient.builder()
+                    .httpClient(new SdkHttpClientForBurp())
+                    .region(Region.US_EAST_1)
+                    .credentialsProvider(() -> AwsSessionCredentials.create(this.staticCredential.getAccessKeyId(), this.staticCredential.getSecretKey(),((SigTemporaryCredential)this.staticCredential).getSessionToken()))
+                    .build();
+        }
 
         AssumeRoleRequest.Builder requestBuilder = AssumeRoleRequest.builder()
                 .roleArn(this.roleArn)

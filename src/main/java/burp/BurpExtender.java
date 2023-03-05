@@ -1612,6 +1612,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, ITab, IExtens
             request = helpers.analyzeRequest(messageInfo);
             if (request.getHeaders().stream().anyMatch(h -> StringUtils.equalsIgnoreCase(h, SKIP_SIGNING_HEADER))) {
                 // Found skip header
+                logger.debug("Found skip headers.");
                 messageInfo.setRequest(helpers.buildHttpMessage(
                         request.getHeaders().stream().filter(h -> !StringUtils.startsWithIgnoreCase(h, HEADER_PREFIX)).collect(Collectors.toList()),
                         Arrays.copyOfRange(messageInfo.getRequest(), request.getBodyOffset(), messageInfo.getRequest().length)
